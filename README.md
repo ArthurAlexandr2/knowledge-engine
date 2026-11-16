@@ -44,14 +44,27 @@ para Prolog. Números são preservados como números, com notação decimal fixa
 Campos vazios e marcadores `NA`, `N/A`, `NaN`, `null`, `none`, `?` e
 `desconhecido` tornam-se o átomo `desconhecido`, sem imputação ou descarte da
 linha. Nesta tabela há **177 idades ausentes e 2 portos ausentes**; os demais
-campos selecionados estão completos. Linhas idênticas são preservadas, pois
-podem representar passageiros distintos.
+campos selecionados estão completos.
 
-Valores numéricos inválidos, negativos ou infinitos, sobrevivência fora de
-0/1, classe fora de 1/2/3, frações em campos inteiros e linhas com quantidade
-inconsistente de colunas são descartados com aviso. CSV inválido ou sem linhas
-válidas encerra com código 1 e preserva a base anterior. A saída é substituída
-somente após a conversão completa.
+O dataset possui 891 passageiros, mas `passageiro/8` utiliza somente oito
+atributos: `PassengerId`, nome (`Name`), bilhete (`Ticket`) e cabine (`Cabin`)
+não fazem parte da base. Assim, passageiros diferentes podem gerar fatos
+Prolog textualmente idênticos. Essas ocorrências não são removidas: cada uma
+representa uma linha/passageiro do dataset original. Preservar a multiplicidade
+mantém a contribuição de cada passageiro; deduplicar os fatos alteraria
+incorretamente as contagens e médias.
+
+O ETL exige os oito cabeçalhos selecionados e valida os valores necessários
+para gerar `passageiro/8`. Descarta com aviso linhas com valores numéricos
+inválidos, negativos ou infinitos, sobrevivência fora de 0/1, classe fora de
+1/2/3 ou frações em campos inteiros. Também descarta linhas com mais valores
+que cabeçalhos ou nas quais um campo selecionado esteja estruturalmente
+ausente. Células vazias presentes seguem o tratamento de ausências acima.
+Uma linha curta pode ser aceita se faltarem apenas campos ignorados.
+As categorias são normalizadas em átomos seguros, sem validação adicional
+de domínio para sexo e porto. CSV sem cabeçalhos válidos ou sem linhas válidas
+encerra com código 1 e preserva a base anterior. A saída é substituída somente
+após a conversão completa.
 
 Resultado da execução com o CSV incluído, código de saída **0**:
 
@@ -71,25 +84,63 @@ Exemplo real da primeira linha:
 passageiro(0, 3, male, 22, 1, 0, 7.25, s).
 ```
 
-## Execução
+## Como executar
 
 Requisitos: Python 3.10 ou superior e
 [SWI-Prolog](https://www.swi-prolog.org/download/stable) no `PATH`.
-O dataset e a base gerada já estão incluídos no repositório. Na raiz, execute:
+O dataset e a base gerada já estão incluídos no repositório.
 
-```console
+### 1. Clonar
+
+```bash
+git clone https://github.com/ArthurAlexandr2/knowledge-engine.git
+cd knowledge-engine
+```
+
+### 2. Verificar Python
+
+```bash
+python --version
+```
+
+### 3. Gerar a base
+
+```bash
 python gerar_base.py
+```
+
+### 4. Usar SWI-Prolog
+
+Se instalado localmente e disponível no `PATH`:
+
+```bash
 swipl -s queries.pl
 ```
 
-`queries.pl` carrega automaticamente `base.pl`. No prompt do Prolog, execute as
-consultas abaixo e use `;` para obter as próximas respostas. Para sair, use
-`halt.`. Também é possível executar todas as respostas de uma consulta pelo
-terminal, sem sessão interativa:
+`queries.pl` carrega automaticamente `base.pl`. No prompt do Prolog, teste:
+
+```prolog
+?- sobreviventes_por_sexo(Sexo, Total).
+?- sobreviventes_por_classe(Classe, Total).
+?- classe_mais_sobreviventes(Classe, Total).
+?- tarifa_media_sobreviventes(Classe, Media).
+```
+
+Use `;` para obter as próximas respostas. Para sair, use `halt.`. Também é
+possível executar todas as respostas de uma consulta pelo terminal, sem sessão
+interativa:
 
 ```console
 swipl -q -s queries.pl -g "forall(sobreviventes_por_sexo(S,T),format('~w: ~d~n',[S,T]))" -t halt
 ```
+
+### 5. Alternativa com SWISH
+
+Acesse [SWISH](https://swish.swi-prolog.org/). Na área **Program**, cole o
+conteúdo de `base.pl` seguido de `queries.pl`, removendo apenas da cópia no
+editor a diretiva `:- ensure_loaded('base.pl').`, pois os fatos já estarão no
+mesmo programa. Na área **Query**, execute uma das consultas acima sem o
+prefixo `?-`.
 
 ## Perguntas sofisticadas
 
@@ -151,12 +202,32 @@ consultas não estabelecem causalidade.
 
 ## Relação com Lógica de Primeira Ordem
 
-Cada linha válida do dataset é convertida em um fato `passageiro/8`, que
-representa uma instância verdadeira desse predicado na base de conhecimento.
-Regras Prolog compõem fatos e inferem respostas; variáveis permitem procurar
-substituições que tornam os objetivos verdadeiros. A negação por falha usada
-na busca do máximo considera os dados conhecidos da base. Agregações e
-aritmética são recursos operacionais do Prolog usados nessas análises.
+### Fatos e inferência
+
+Cada linha válida do dataset gera uma ocorrência de fato `passageiro/8`,
+representando uma instância verdadeira desse predicado na base de conhecimento.
+As regras derivam informações a partir desses fatos, e as queries solicitam ao
+Prolog valores que tornam determinados objetivos verdadeiros. As contagens
+preservam as ocorrências dos passageiros, inclusive cláusulas textualmente
+idênticas; repetir uma sentença não acrescenta uma nova verdade na LPO clássica.
+
+### Unificação
+
+Ao executar uma consulta, o Prolog busca substituições para as variáveis que
+tornem os objetivos compatíveis com os fatos e as cabeças das regras da base,
+prosseguindo com a resolução dos respectivos corpos.
+
+### Quantificação implícita
+
+As variáveis das cláusulas são implicitamente quantificadas universalmente,
+permitindo formular regras gerais sobre os passageiros. Nas consultas,
+buscam-se substituições que satisfaçam os objetivos; predicados de agregação
+também estabelecem escopos próprios para suas variáveis.
+
+A negação como falha (`\+`) usada na busca do máximo verifica a ausência de
+uma prova de total maior na base conhecida; não é negação clássica irrestrita.
+`findall`, `setof`, `sum_list` e a aritmética são recursos operacionais do
+Prolog empregados nas análises, não conectivos da LPO.
 
 ## Validação realizada
 
