@@ -1,142 +1,185 @@
-# Knowledge Engine
+# Knowledge Engine — Titanic
 
-Projeto acadêmico de Lógica e Matemática Discreta: converter uma tabela pública
-do Titanic em uma base de conhecimento Prolog e responder perguntas com
-agregação, comparação e composição de regras.
+Projeto acadêmico de Lógica e Matemática Discreta: ETL em Python que converte
+uma tabela pública do Titanic em fatos Prolog e responde perguntas sofisticadas
+com agregação, comparação, cálculo e composição de regras.
 
-## Dataset e preparação
+## Dataset e fonte
 
-**Pendente: adicionar `dados.csv` na raiz deste repositório.** Nenhum CSV foi
-fornecido e a `base.pl` inicial está vazia. Não há resultados empíricos ainda.
+**Titanic dataset — pandas-dev/pandas**. Arquivo original: `doc/data/titanic.csv`.
+Tabela de passageiros disponibilizada como dado de exemplo na documentação do
+repositório oficial do pandas, com características dos passageiros e indicação
+de sobrevivência.
 
-Use uma única tabela pública de passageiros do Titanic que contenha os oito
-campos abaixo, incluindo o resultado de sobrevivência. Não combine tabelas.
-Renomeie o arquivo para `dados.csv`, em UTF-8, separado por vírgulas, com cabeçalho.
-Cabeçalhos como `Survived` e `Pclass` também são aceitos.
+- [Arquivo original no GitHub](https://github.com/pandas-dev/pandas/blob/main/doc/data/titanic.csv).
+- [CSV RAW utilizado](https://raw.githubusercontent.com/pandas-dev/pandas/main/doc/data/titanic.csv).
+- Data de acesso: **15/11/2026**.
+- Cópia original preservada em `dados.csv`: **891 registros e 12 colunas**.
+- Utiliza-se **apenas uma tabela-fonte**, sem combinar datasets. O ETL seleciona
+  somente os **8 campos** abaixo e ignora as outras quatro colunas.
+- SHA-256 do CSV incluído: `cd888141e6a2ca5906114d0b6a63d8a3e14edb3326f7bdd56327d14646b68c36`.
 
-**Fonte do dataset: PENDENTE — inserir aqui a URL pública exata da tabela
-escolhida, sua identificação/licença e a data de acesso ao adicionar o CSV.**
-Não use uma tabela de teste sem a coluna `survived`.
-
-| Campo | Tipo e significado |
+| Campo selecionado | Tipo e significado |
 | --- | --- |
-| survived | Qualitativa binária codificada: 0 = morreu, 1 = sobreviveu |
+| survived | Qualitativa binária codificada: 0 = morreu; 1 = sobreviveu |
 | pclass | Qualitativa ordinal codificada: classe 1, 2 ou 3 |
-| sex | Qualitativa nominal: sexo registrado |
-| age | Quantitativa: idade em anos, aceita frações |
+| sex | Qualitativa nominal: sexo registrado (`female`, `male`) |
+| age | Quantitativa: idade em anos, incluindo frações |
 | sibsp | Quantitativa inteira: irmãos/cônjuges a bordo |
 | parch | Quantitativa inteira: pais/filhos a bordo |
 | fare | Quantitativa: tarifa registrada |
-| embarked | Qualitativa nominal: porto de embarque |
+| embarked | Qualitativa nominal: porto de embarque (`c` = Cherbourg, `q` = Queenstown, `s` = Southampton) |
 
-## Conversão Python (ETL)
+## Processo ETL
 
-`gerar_base.py` lê apenas uma tabela e seleciona os oito campos; colunas extras
-são ignoradas. Usa somente a biblioteca padrão: **não precisa de pandas**.
-Remove espaços externos dos valores e normaliza cabeçalhos para minúsculas.
-Categorias são convertidas em átomos ASCII em minúsculas, sem espaços, com
-caracteres incompatíveis substituídos por `_`. Categorias iniciadas por número
-recebem o prefixo `valor_`.
+```text
+dados.csv → gerar_base.py → limpeza/normalização → base.pl
+```
+
+O conversor usa somente a biblioteca padrão do Python, sem dependência de
+pandas. Normaliza cabeçalhos para minúsculas, seleciona os oito campos e remove
+espaços externos. Categorias são convertidas em átomos ASCII minúsculos seguros
+para Prolog. Números são preservados como números, com notação decimal fixa.
 
 Campos vazios e marcadores `NA`, `N/A`, `NaN`, `null`, `none`, `?` e
-`desconhecido` viram o átomo `desconhecido`. Números permanecem números;
-valores negativos, infinitos, valores inválidos de classe/sobrevivência e
-frações em campos inteiros fazem a linha ser descartada com aviso.
-Linhas com quantidade inconsistente de colunas também são descartadas.
-Ausências não causam descarte e não são imputadas. Linhas idênticas são
-preservadas: podem representar passageiros distintos.
+`desconhecido` tornam-se o átomo `desconhecido`, sem imputação ou descarte da
+linha. Nesta tabela há **177 idades ausentes e 2 portos ausentes**; os demais
+campos selecionados estão completos. Linhas idênticas são preservadas, pois
+podem representar passageiros distintos.
 
-O script informa os totais de fatos gerados e linhas descartadas. CSV ausente,
-cabeçalhos inválidos ou nenhuma linha válida produzem erro claro, código de
-saída 1 e preservam a base anterior. A saída é substituída somente após a
-conversão completa.
+Valores numéricos inválidos, negativos ou infinitos, sobrevivência fora de
+0/1, classe fora de 1/2/3, frações em campos inteiros e linhas com quantidade
+inconsistente de colunas são descartados com aviso. CSV inválido ou sem linhas
+válidas encerra com código 1 e preserva a base anterior. A saída é substituída
+somente após a conversão completa.
 
-Cada fato tem oito argumentos nesta ordem e termina com ponto:
+Resultado da execução com o CSV incluído, código de saída **0**:
+
+```text
+891 fatos gerados em base.pl; 0 linhas descartadas.
+```
+
+Cada fato tem oito argumentos na ordem:
 
 ```prolog
-% Estrutura do predicado; variáveis abaixo não são dados de passageiros.
 passageiro(Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked).
+```
+
+Exemplo real da primeira linha:
+
+```prolog
+passageiro(0, 3, male, 22, 1, 0, 7.25, s).
 ```
 
 ## Execução
 
-1. Instale Python 3.10 ou superior e [SWI-Prolog](https://www.swi-prolog.org/download/stable), caso ainda não estejam instalados.
-2. Adicione o CSV público em `dados.csv` e registre a fonte acima.
-3. No terminal, na raiz do repositório, execute:
+Requisitos: Python 3.10 ou superior e
+[SWI-Prolog](https://www.swi-prolog.org/download/stable) no `PATH`.
+O dataset e a base gerada já estão incluídos no repositório. Na raiz, execute:
 
 ```console
 python gerar_base.py
 swipl -s queries.pl
 ```
 
-`queries.pl` carrega `base.pl` automaticamente. Em uma sessão SWI-Prolog já
-aberta na raiz, também é possível carregar explicitamente:
+`queries.pl` carrega automaticamente `base.pl`. No prompt do Prolog, execute as
+consultas abaixo e use `;` para obter as próximas respostas. Para sair, use
+`halt.`. Também é possível executar todas as respostas de uma consulta pelo
+terminal, sem sessão interativa:
 
-```prolog
-?- [base, queries].
+```console
+swipl -q -s queries.pl -g "forall(sobreviventes_por_sexo(S,T),format('~w: ~d~n',[S,T]))" -t halt
 ```
 
-No SWISH, cole o conteúdo de `base.pl` seguido de `queries.pl` no editor de
-programa, **removendo a linha `:- ensure_loaded('base.pl').`**: a base já estará
-no mesmo programa. Execute as consultas no painel de consultas, sem `?-`.
+## Perguntas sofisticadas
 
-## Perguntas e consultas
+### A. Quantos sobreviventes há por sexo?
 
-**A. Quantos sobreviventes há por sexo?** Enumera sexos conhecidos com
-`setof/3`, reúne sobreviventes com `findall/3` e conta com `length/2`.
+Predicado: `sobreviventes_por_sexo/2`. É sofisticada por **agregação**:
+`sexo_conhecido/1` identifica grupos, `setof/3` elimina grupos repetidos,
+`member/2` os enumera, `findall/3` coleta os sobreviventes de cada sexo e
+`length/2` os conta, preservando passageiros com atributos idênticos.
 
 ```prolog
 ?- sobreviventes_por_sexo(Sexo, Total).
+Sexo = female, Total = 233 ;
+Sexo = male, Total = 109.
 ```
 
-**B. Quantos sobreviventes há por classe e qual classe tem o maior total?**
-Compõe a contagem por classe com comparação numérica entre totais.
-Retorna todas as classes empatadas no máximo.
+### B. Qual classe teve o maior número de sobreviventes?
+
+Predicado: `classe_mais_sobreviventes/2`. É sofisticada por **agregação,
+comparação e composição de regras**: usa `sobreviventes_por_classe/2` para
+calcular os totais e verifica, com `\+/1` e `>/2`, que nenhuma outra classe
+possui total maior. Retorna todas as classes empatadas no máximo.
+
+```prolog
+?- classe_mais_sobreviventes(Classe, Total).
+Classe = 1, Total = 136.
+```
+
+A consulta auxiliar também é agregada: `classe_conhecida/1`, `setof/3`,
+`member/2`, `findall/3` e `length/2` calculam sobreviventes por classe:
 
 ```prolog
 ?- sobreviventes_por_classe(Classe, Total).
-?- classe_mais_sobreviventes(Classe, Total).
+Classe = 1, Total = 136 ;
+Classe = 2, Total = 87 ;
+Classe = 3, Total = 119.
 ```
 
-**C. Qual é a tarifa média dos sobreviventes de cada classe?** Reúne tarifas
-numéricas, soma com `sum_list/2` e divide pela quantidade de tarifas conhecidas.
-Uma classe sem tarifa válida de sobreviventes não retorna média, evitando
-divisão por zero e um zero artificial.
+### C. Qual a tarifa média dos passageiros sobreviventes por classe?
+
+Predicado: `tarifa_media_sobreviventes/2`. É sofisticada por **agregação e
+cálculo**: enumera classes com predicado auxiliar, coleta tarifas numéricas
+com `findall/3` e `number/1`, conta com `length/2`, soma com `sum_list/2` e
+calcula a média com `is/2`. Exige quantidade maior que zero para evitar divisão
+por zero. Tarifas desconhecidas são excluídas da soma e do denominador.
 
 ```prolog
 ?- tarifa_media_sobreviventes(Classe, Media).
+Classe = 1, Media = 95.60802867647055 ;
+Classe = 2, Media = 22.0557 ;
+Classe = 3, Media = 13.694887394957966.
 ```
 
-Use `;` no SWI-Prolog para pedir as próximas respostas. Grupos conhecidos sem
-sobreviventes retornam contagem zero; grupos desconhecidos são excluídos das
-análises por sexo/classe. Sobrevivência desconhecida não conta como sobrevivente.
-Com a base vazia, as consultas retornam `false`, sem resultados inventados.
-As contagens são absolutas; não representam taxas de sobrevivência e não
-demonstram causalidade.
+As últimas casas decimais podem variar com a representação de ponto flutuante.
+Grupos conhecidos sem sobreviventes retornam contagem zero; grupos de sexo ou
+classe desconhecidos são excluídos. Sobrevivência desconhecida não conta como
+sobrevivente. As contagens são absolutas, não taxas de sobrevivência; as
+consultas não estabelecem causalidade.
+
+## Relação com Lógica de Primeira Ordem
+
+Cada linha válida do dataset é convertida em um fato `passageiro/8`, que
+representa uma instância verdadeira desse predicado na base de conhecimento.
+Regras Prolog compõem fatos e inferem respostas; variáveis permitem procurar
+substituições que tornam os objetivos verdadeiros. A negação por falha usada
+na busca do máximo considera os dados conhecidos da base. Agregações e
+aritmética são recursos operacionais do Prolog usados nessas análises.
+
+## Validação realizada
+
+- ETL executado sobre o CSV real: código 0, 891 fatos e zero linhas descartadas.
+- Conferência de todos os fatos contra as oito colunas selecionadas do CSV:
+  aridade 8, ponto final, átomos minúsculos, tipos e ausências consistentes.
+- Regras e base carregadas sem erros ou avisos no **SWI-Prolog 10.1.20 via
+  WebAssembly**, pacote oficial `swipl-wasm` 8.3.0, executado em Node.js fora do
+  repositório. O executável nativo `swipl` não estava disponível no ambiente.
+- As quatro consultas foram executadas e seus resultados completos foram
+  verificados por asserções; contagens e médias também conferidas
+  independentemente em Python (tolerância de `1e-9` para as médias).
+- Contagem total e ausências verificadas também em Prolog; nova execução do
+  ETL confirmada como reprodutível, sem alterar o conteúdo da base.
 
 ## Estrutura
 
 ```text
 knowledge-engine/
-├── gerar_base.py  # CSV -> fatos Prolog
-├── dados.csv      # PENDENTE: única tabela pública, adicionada manualmente
-├── base.pl        # gerada pelo conversor; inicialmente vazia
-├── queries.pl     # regras auxiliares e análises
 ├── README.md
+├── dados.csv      # CSV original: única tabela-fonte
+├── gerar_base.py  # ETL Python: seleciona oito campos
+├── base.pl        # 891 fatos passageiro/8 gerados
+├── queries.pl     # regras auxiliares e perguntas sofisticadas
 └── .gitignore
 ```
-
-Antes do commit/push, adicione o dataset e sua fonte, execute
-`python gerar_base.py`, carregue `queries.pl` e rode as quatro consultas acima.
-Confira as linhas descartadas e revise `git diff` e `git status` antes de
-versionar os arquivos.
-
-## Validação realizada
-
-O conversor foi executado com um CSV sintético isolado para verificar seleção
-dos campos, duplicatas, ausências, normalização, descarte de valores inválidos
-e preservação da base em caso de erro. As regras foram executadas no SWI-Prolog
-(WebAssembly) para conferir sintaxe, contagens, empates, grupos sem
-sobreviventes, base vazia e médias com tarifas ausentes. Esses dados serviram
-apenas para testes e não integram `base.pl`. A validação com o dataset público
-real permanece pendente da inclusão de `dados.csv`.
